@@ -1,0 +1,22 @@
+# Build-Artefakte ---------------------------------------------------
+bin/
+obj/
+*.user
+*.suo
+.vs/
+.idea/
+
+# Claude Code Session-Daten -----------------------------------------
+.claude/
+
+# Whisper-Modelle (zu groß für Git, manueller Download per README) --
+whisper-models/*.bin
+
+# Laufzeit-Artefakte ------------------------------------------------
+last-recording.wav
+whisper-debug.log
+*.lnk
+
+# Temporäre WhisperTest-Builds --------------------------------------
+WhisperTest/bin/
+WhisperTest/obj/

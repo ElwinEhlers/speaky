@@ -1,0 +1,82 @@
+<Window x:Class="Speaky.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Speaky"
+        Height="290" Width="340"
+        ResizeMode="CanMinimize"
+        WindowStartupLocation="Manual"
+        Topmost="True"
+        ShowInTaskbar="True"
+        Background="#1E1E22"
+        Foreground="#EEEEEE"
+        FontFamily="Segoe UI">
+    <Window.Resources>
+        <Style TargetType="Button">
+            <Setter Property="Padding" Value="12,6"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground" Value="White"/>
+        </Style>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="#DDDDDD"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <!-- Status -->
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+            <Ellipse x:Name="StatusDot" Width="12" Height="12" Fill="#666" VerticalAlignment="Center"/>
+            <TextBlock x:Name="StatusLabel" Text="Bereit" Margin="8,0,0,0"
+                       FontSize="14" FontWeight="SemiBold" VerticalAlignment="Center"/>
+        </StackPanel>
+
+        <!-- Start/Stop Button -->
+        <Button Grid.Row="1" x:Name="ToggleButton"
+                Content="▶  Start (Ctrl+Alt+S)"
+                Height="42" FontSize="15" FontWeight="SemiBold"
+                Background="#2E7D32"
+                Click="ToggleButton_Click"/>
+
+        <!-- VU-Meter -->
+        <Border Grid.Row="2" Height="6" Margin="0,10,0,0" Background="#2A2A2E" CornerRadius="3">
+            <Border x:Name="LevelBar" HorizontalAlignment="Left" Width="0"
+                    Background="#4FC3F7" CornerRadius="3"/>
+        </Border>
+
+        <!-- Modus-Dropdown -->
+        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,14,0,0">
+            <TextBlock Text="Modus:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <ComboBox x:Name="ModeCombo" Width="180" SelectionChanged="ModeCombo_SelectionChanged">
+                <ComboBoxItem Content="Blitzmodus"/>
+                <ComboBoxItem Content="Ausschreib-Modus"/>
+                <ComboBoxItem Content="Rage-Modus"/>
+                <ComboBoxItem Content="Emoji-Modus"/>
+            </ComboBox>
+        </StackPanel>
+
+        <!-- Emoji-Count (nur sichtbar im Emoji-Modus) -->
+        <StackPanel Grid.Row="4" x:Name="EmojiPanel" Orientation="Horizontal"
+                    Margin="0,10,0,0" Visibility="Collapsed">
+            <TextBlock Text="Emojis:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <Slider x:Name="EmojiSlider" Width="140" Minimum="1" Maximum="5"
+                    IsSnapToTickEnabled="True" TickFrequency="1" Value="2"
+                    ValueChanged="EmojiSlider_ValueChanged"/>
+            <TextBlock x:Name="EmojiCountLabel" Text="2" Margin="8,0,0,0" VerticalAlignment="Center"/>
+        </StackPanel>
+
+        <!-- Info unten -->
+        <TextBlock Grid.Row="5" Margin="0,14,0,0" FontSize="11" Foreground="#888"
+                   TextWrapping="Wrap" VerticalAlignment="Bottom"
+                   Text="Ctrl+Alt+S startet/stoppt die Aufnahme. Fenster schließen = Speaky läuft im Tray weiter."/>
+    </Grid>
+</Window>
