@@ -19,7 +19,23 @@ Kleine Windows-11-Hintergrund-App: Hotkey drücken → sprechen → loslassen �
   3. **Rage** – GROSSBUCHSTABEN + Ausrufezeichen
   4. **Emoji** – Text + 1–5 zufällige Emojis (per Slider)
 
+## Voraussetzungen
+
+- **Windows 10 / 11 (x64)**. Das Projekt zielt explizit auf `net8.0-windows` mit WPF + WinForms und läuft nicht auf Linux/macOS.
+- **.NET 8 SDK (x64)**. Download: https://dotnet.microsoft.com/download/dotnet/8.0 (wähle "SDK x64"). Prüfen im Terminal: `dotnet --version` sollte mit `8.0.` beginnen.
+- **Visual Studio wird NICHT benötigt** – das reine `dotnet` CLI reicht für Build und Run.
+- **Git** (optional, nur für `git clone`; alternativ kannst du das Repo auch als ZIP von GitHub laden).
+- Ca. **500 MB freier Plattenplatz** für das Whisper-Modell plus ~200 MB für Build-Artefakte.
+- Ein **Mikrofon** plus die Windows-Erlaubnis, dass Desktop-Apps darauf zugreifen dürfen (siehe Schritt 4).
+
 ## Setup
+
+### 0. Repository klonen
+
+```bash
+git clone https://github.com/ElwinEhlers/speaky.git
+cd speaky
+```
 
 ### 1. Abhängigkeiten wiederherstellen
 
@@ -52,16 +68,25 @@ Wenn du ein anderes Modell verwenden willst, passe den Pfad in `App.xaml.cs` an 
 
 ### 3. Bauen und starten
 
-```bash
-dotnet build -c Release
-dotnet run -c Release
-```
-
-Oder direkt die Debug-Version:
+Aus dem Projekt-Root:
 
 ```bash
-dotnet run
+dotnet build Speaky.csproj -c Release
 ```
+
+Die fertige EXE liegt danach unter:
+
+```
+bin\Release\net8.0-windows\Speaky.exe
+```
+
+Starten kannst du sie auf drei Wegen:
+
+- **Doppelklick** auf `Speaky.exe` im Explorer
+- **Aus dem Terminal:** `bin\Release\net8.0-windows\Speaky.exe`
+- **Über dotnet run:** `dotnet run --project Speaky.csproj -c Release`
+
+Der **erste Start** dauert oft 10–30 s länger als spätere, weil Windows Defender die Native-DLLs von Whisper.net.Runtime einmalig scannt und Whisper das Modell zum ersten Mal in den RAM lädt. Danach ist jeder weitere Start flott.
 
 ### 4. Mikrofon-Berechtigung
 
@@ -78,6 +103,15 @@ Falls das Mikrofon blockiert ist, zeigt Speaky eine entsprechende Meldung.
 3. Sprechen
 4. `Ctrl+Alt+S` nochmal drücken **oder** Stop-Button klicken
 5. Warten (1–3 s beim ersten Mal, <1 s danach) — Text wird eingefügt
+
+## Troubleshooting
+
+- **"Modell fehlt – siehe README"** im Statusfeld: Die Datei `whisper-models/ggml-small.bin` liegt nicht neben der EXE. Download nochmal prüfen (Schritt 2 oben) und sicherstellen, dass die Datei **nach dem Build** im Ordner `bin\Release\net8.0-windows\whisper-models\` auftaucht. Die `.csproj` kopiert sie automatisch, aber nur wenn sie im Quell-Ordner liegt.
+- **"Mikrofon-Fehler"** beim Start der Aufnahme: Entweder existiert kein aktives Standard-Aufnahmegerät, oder Desktop-Apps haben keinen Mikrofon-Zugriff (siehe Schritt 4). Prüfen in **Einstellungen → System → Sound → Eingabe**, dass ein Gerät ausgewählt ist.
+- **Hotkey `Ctrl+Alt+S` macht nichts**: Eine andere App hat ihn schon belegt (häufig: Snipping Tool, Steam-Overlay, OBS). Der Start-Button in der GUI funktioniert weiterhin; die eigentliche Lösung ist, die andere App zu stoppen oder Speaky später auf einen freien Hotkey umzukonfigurieren.
+- **Aufnahme läuft, aber es wird kein Text eingefügt**: Wenn das Zielfenster als Administrator läuft und Speaky nicht, blockt UIPI das simulierte `Ctrl+V`. Speaky ebenfalls als Administrator starten. Remote-Desktop-/Citrix-Sessions haben ähnliche Symptome, je nach Clipboard-Durchreiche der Session.
+- **Erster Transcribe dauert ~30 s**: Normal. Windows Defender scannt beim ersten Start die native `whisper.dll`, und Whisper lädt das Modell erstmalig in den RAM. Ab dem zweiten Mal <1 s.
+- **Diagnose-Log**: Bei merkwürdigen Ausgaben (Halluzinationen, leerer Text, kaputte Zeichen) liegt neben der EXE eine `whisper-debug.log`. Darin steht segmentweise, was Whisper wirklich zurückgegeben hat — damit lässt sich eingrenzen, ob der Bug in Whisper, im Mode-Processing oder in der Text-Insertion steckt.
 
 ## Architektur (Kurzfassung)
 
@@ -96,6 +130,27 @@ App.xaml.cs                 ← Composition Root, verdrahtet alle Services
 ```
 
 GUI-Button und Hotkey ändern denselben `RecordingState`. Dadurch sind Button-Label, Tray-Icon und Hotkey-Verhalten immer synchron — egal womit gestartet wurde.
+
+## Der `WhisperTest/`-Ordner
+
+Im Repo liegt ein kleines **eigenständiges Console-Programm** unter `WhisperTest/` (`Program.cs` + `WhisperTest.csproj`). Es ist **nicht Teil des Speaky-Builds** — die Haupt-`Speaky.csproj` schließt den Ordner explizit aus:
+
+```xml
+<Compile Remove="WhisperTest\**" />
+<None Remove="WhisperTest\**" />
+<EmbeddedResource Remove="WhisperTest\**" />
+<Page Remove="WhisperTest\**" />
+```
+
+Zweck: Minimales, WPF-freies Whisper.net-Setup, das denselben Modellpfad und dieselbe WAV-Datei verwendet wie Speaky. Genau dieses Programm hat beim MVP-Build bewiesen, dass Whisper sauber transkribiert — während Speaky in derselben Version halluzinierte. Dadurch ließ sich der Bug zweifelsfrei auf die WPF-SynchronizationContext-Interaktion einkreisen (siehe "Hart erkaufte Lessons Learned" #1).
+
+Falls Whisper in Speaky nochmal seltsame Dinge tut, ist das der erste Test, den man laufen lässt:
+
+```bash
+dotnet run --project WhisperTest/WhisperTest.csproj -c Release
+```
+
+Wenn **dort** die Ausgabe sauber ist, aber in Speaky kaputt, liegt der Fehler garantiert nicht in Whisper oder im Modell, sondern in der Integration (Threading, Dispatcher, Mode-Processing, Text-Insertion).
 
 ## Bekannte Grenzen / Edge Cases
 
