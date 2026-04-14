@@ -5,11 +5,11 @@ namespace Speaky.Services;
 /// <summary>
 /// Wendet pro Modus ein Post-Processing auf das rohe Whisper-Transkript an.
 ///
-/// HINWEIS: Das MVP arbeitet rein deterministisch (Regex, Mapping).
-/// Für wirklich "natürliche" Umformulierungen (insbesondere Rage-Modus und
-/// Ausschreib-Modus) ist der nächste Ausbau ein LLM-Call (lokales Ollama / LM Studio).
-/// Dafür ist die Architektur schon vorbereitet – es reicht, diese Klasse hinter
-/// ein Interface zu ziehen und eine LLM-Variante zu implementieren.
+/// - Blitz / Ausschreib / Emoji: rein deterministisch, kein externer Service.
+/// - Diplomatie: ruft <see cref="LlmService"/> (Ollama) auf und fällt auf den
+///   deterministischen Cleanup zurück, wenn Ollama nicht erreichbar ist.
+///   Ollama wird dabei <b>on demand</b> via <see cref="OllamaLifecycle"/>
+///   gestartet – die anderen Modi starten nie ein LLM.
 /// </summary>
 public sealed class ModeManager
 {
@@ -19,19 +19,68 @@ public sealed class ModeManager
         "😎", "💯", "👌", "🎉", "⚡", "🌟", "❤️", "🙏",
     };
 
-    public string Process(string rawText, RecordingMode mode, int emojiCount)
+    private readonly OllamaLifecycle _ollama;
+    private readonly LlmService _llm;
+
+    public ModeManager(OllamaLifecycle ollama, LlmService llm)
+    {
+        _ollama = ollama;
+        _llm = llm;
+    }
+
+    /// <summary>Ergebnis eines Mode-Processing-Laufs inklusive Statusmeldung für die GUI.</summary>
+    public readonly record struct Result(string Text, string Status);
+
+    public async Task<Result> ProcessAsync(
+        string rawText,
+        RecordingMode mode,
+        int emojiCount,
+        string llmModel,
+        CancellationToken ct = default)
     {
         var text = rawText.Trim();
-        if (text.Length == 0) return text;
+        if (text.Length == 0) return new Result(text, "Nichts erkannt");
 
-        return mode switch
+        switch (mode)
         {
-            RecordingMode.Blitz => text,
-            RecordingMode.Ausschreib => Cleanup(text),
-            RecordingMode.Rage => Rage(Cleanup(text)),
-            RecordingMode.Emoji => WithEmojis(text, emojiCount),
-            _ => text,
-        };
+            case RecordingMode.Blitz:
+                return new Result(text, "Eingefügt – bereit");
+
+            case RecordingMode.Ausschreib:
+                return new Result(Cleanup(text), "Eingefügt – bereit");
+
+            case RecordingMode.Emoji:
+                return new Result(WithEmojis(text, emojiCount), "Eingefügt – bereit");
+
+            case RecordingMode.Diplomatie:
+                return await DiplomatieAsync(text, llmModel, ct).ConfigureAwait(false);
+
+            default:
+                return new Result(text, "Eingefügt – bereit");
+        }
+    }
+
+    private async Task<Result> DiplomatieAsync(string text, string llmModel, CancellationToken ct)
+    {
+        // 1) Ollama hochfahren (oder feststellen, dass er schon läuft).
+        var up = await _ollama.EnsureRunningAsync(ct).ConfigureAwait(false);
+        if (!up)
+        {
+            // Fallback: Rohtext nur aufgeräumt zurückgeben. So funktioniert Speaky
+            // auch dann weiter, wenn Ollama nicht installiert ist.
+            return new Result(Cleanup(text), "Ollama nicht erreichbar – Rohtext eingefügt");
+        }
+
+        // 2) LLM-Rewrite versuchen. Bei Fehler ebenfalls Cleanup-Fallback.
+        try
+        {
+            var rewritten = await _llm.DiplomatieRewriteAsync(text, llmModel, ct).ConfigureAwait(false);
+            return new Result(rewritten, $"Diplomatie ({llmModel}) – eingefügt");
+        }
+        catch (Exception ex)
+        {
+            return new Result(Cleanup(text), "LLM-Fehler: " + ex.Message);
+        }
     }
 
     /// <summary>
@@ -45,13 +94,6 @@ public sealed class ModeManager
         text = char.ToUpper(text[0]) + text[1..];
         if (!".!?".Contains(text[^1])) text += ".";
         return text;
-    }
-
-    /// <summary>Rage-Modus: alles groß + Ausrufezeichen. Deterministisch, keine Magie.</summary>
-    private static string Rage(string text)
-    {
-        text = text.TrimEnd('.', '!', '?', ' ');
-        return text.ToUpperInvariant() + "!!!";
     }
 
     /// <summary>

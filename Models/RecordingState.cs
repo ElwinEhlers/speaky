@@ -21,6 +21,7 @@ public sealed class RecordingState : INotifyPropertyChanged
     private int _emojiCount = 2;
     private float _inputLevel;
     private string _statusText = "Bereit";
+    private string _llmModel = LlmModels.Default;
 
     public Phase CurrentPhase
     {
@@ -52,6 +53,17 @@ public sealed class RecordingState : INotifyPropertyChanged
     {
         get => _statusText;
         set { if (_statusText != value) { _statusText = value; OnChanged(); } }
+    }
+
+    /// <summary>
+    /// Ausgewähltes Ollama-Modell für den Diplomatie-Modus.
+    /// Wird nur bei <see cref="RecordingMode.Diplomatie"/> ausgewertet –
+    /// Blitz/Ausschreib/Emoji ignorieren das und starten kein LLM.
+    /// </summary>
+    public string LlmModel
+    {
+        get => _llmModel;
+        set { if (_llmModel != value) { _llmModel = value; OnChanged(); } }
     }
 
     public bool IsRecording => _currentPhase == Phase.Recording;

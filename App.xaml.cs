@@ -24,6 +24,8 @@ public partial class App : Application
     private ModeManager? _modeManager;
     private TrayIconService? _tray;
     private ForegroundTracker? _foreground;
+    private OllamaLifecycle? _ollama;
+    private LlmService? _llm;
 
     // Serialisiert Aufnahme-Toggles, damit ein schneller Doppel-Druck keinen
     // Race zwischen "Start" und "Stop" erzeugt.
@@ -36,8 +38,14 @@ public partial class App : Application
         _state = new RecordingState();
         _recorder = new AudioRecorder();
         _textInsert = new TextInsertion();
-        _modeManager = new ModeManager();
         _foreground = new ForegroundTracker();
+
+        // LLM-Stack nur instanziiert – NICHT gestartet. Ollama läuft erst dann hoch,
+        // wenn der User tatsächlich den Diplomatie-Modus benutzt. Blitz/Ausschreib/
+        // Emoji triggern nie einen Ollama-Start.
+        _ollama = new OllamaLifecycle();
+        _llm = new LlmService();
+        _modeManager = new ModeManager(_ollama, _llm);
 
         // Modell-Pfad: whisper-models/ggml-small.bin neben der .exe.
         // (base war nur für Diagnose aktiv – small liefert spürbar bessere deutsche Transkripte)
@@ -118,17 +126,25 @@ public partial class App : Application
                 try
                 {
                     var raw = await _transcriber.TranscribeFileAsync(wavPath);
-                    var processed = _modeManager.Process(raw, _state.Mode, _state.EmojiCount);
 
-                    if (!string.IsNullOrWhiteSpace(processed))
+                    // Für den Diplomatie-Modus kann das Post-Processing mehrere
+                    // Sekunden dauern (LLM-Inferenz). Der Status wird hier sichtbar
+                    // umgesetzt, damit der User weiß, dass die App nicht hängt.
+                    if (_state.Mode == RecordingMode.Diplomatie)
+                        _state.StatusText = $"Diplomatie ({_state.LlmModel}) …";
+
+                    var result = await _modeManager.ProcessAsync(
+                        raw, _state.Mode, _state.EmojiCount, _state.LlmModel);
+
+                    if (!string.IsNullOrWhiteSpace(result.Text))
                     {
                         // Fokus zurück auf das ursprüngliche Zielfenster holen
                         // (wichtig wenn der User per GUI-Button gestartet hat).
                         _foreground.RestoreForeground();
                         await Task.Delay(80);
 
-                        _textInsert.Insert(processed);
-                        _state.StatusText = "Eingefügt – bereit";
+                        _textInsert.Insert(result.Text);
+                        _state.StatusText = result.Status;
                     }
                     else
                     {
@@ -165,6 +181,10 @@ public partial class App : Application
         _transcriber?.Dispose();
         _tray?.Dispose();
         _foreground?.Dispose();
+        // OllamaLifecycle killt den Ollama-Child-Prozess genau dann, wenn Speaky
+        // ihn selbst gestartet hat. Einen bereits laufenden Ollama-Service rührt
+        // Dispose nicht an.
+        _ollama?.Dispose();
         _toggleLock.Dispose();
         base.OnExit(e);
     }

@@ -37,8 +37,25 @@ public partial class MainWindow : Window
         _state.PropertyChanged += OnStateChanged;
         ModeCombo.SelectedIndex = (int)_state.Mode;
         EmojiSlider.Value = _state.EmojiCount;
+        LlmCombo.SelectedIndex = LlmModelToIndex(_state.LlmModel);
         ApplyState();
     }
+
+    private static int LlmModelToIndex(string model) => model switch
+    {
+        LlmModels.Qwen3_8B => 0,
+        LlmModels.Gemma4_E4B => 1,
+        LlmModels.Gemma4_26B => 2,
+        _ => 0,
+    };
+
+    private static string IndexToLlmModel(int index) => index switch
+    {
+        0 => LlmModels.Qwen3_8B,
+        1 => LlmModels.Gemma4_E4B,
+        2 => LlmModels.Gemma4_26B,
+        _ => LlmModels.Default,
+    };
 
     private void OnStateChanged(object? sender, PropertyChangedEventArgs e)
     {
@@ -84,6 +101,9 @@ public partial class MainWindow : Window
 
         EmojiPanel.Visibility = _state.Mode == RecordingMode.Emoji
             ? Visibility.Visible : Visibility.Collapsed;
+
+        LlmPanel.Visibility = _state.Mode == RecordingMode.Diplomatie
+            ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void ToggleButton_Click(object sender, RoutedEventArgs e)
@@ -104,6 +124,13 @@ public partial class MainWindow : Window
         if (_state is null) return;
         _state.EmojiCount = (int)e.NewValue;
         EmojiCountLabel.Text = _state.EmojiCount.ToString();
+    }
+
+    private void LlmCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_state is null) return;
+        if (LlmCombo.SelectedIndex < 0) return;
+        _state.LlmModel = IndexToLlmModel(LlmCombo.SelectedIndex);
     }
 
     /// <summary>
