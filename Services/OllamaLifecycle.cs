@@ -31,6 +31,7 @@ public sealed class OllamaLifecycle : IDisposable
     private const int ReadyProbeTimeoutMs = 1500;
     private const int StartupWaitTotalMs = 15000;
     private const int StartupPollIntervalMs = 400;
+    private const int PrewarmTimeoutMs = 240_000; // 4 Min – Kaltstart qwen3:8b braucht bis ~90s
 
     private readonly HttpClient _http;
     private readonly SemaphoreSlim _gate = new(1, 1);
@@ -55,9 +56,12 @@ public sealed class OllamaLifecycle : IDisposable
 
     /// <summary>
     /// Stellt sicher, dass Ollama erreichbar ist. Startet ihn notfalls selbst.
+    /// Wenn <paramref name="modelToPrewarm"/> angegeben wird, wird das Modell nach dem
+    /// Start einmalig in den VRAM geladen, damit die erste echte Inferenz nicht in
+    /// den HTTP-Timeout läuft.
     /// Gibt <c>true</c> zurück, wenn Ollama am Ende erreichbar ist.
     /// </summary>
-    public async Task<bool> EnsureRunningAsync(CancellationToken ct = default)
+    public async Task<bool> EnsureRunningAsync(string? modelToPrewarm = null, CancellationToken ct = default)
     {
         await _gate.WaitAsync(ct).ConfigureAwait(false);
         try
@@ -68,6 +72,8 @@ public sealed class OllamaLifecycle : IDisposable
             {
                 Log("reachable on first probe – using existing server, _weStartedIt=false");
                 _weStartedIt = false;
+                if (modelToPrewarm is not null)
+                    await PrewarmModelAsync(modelToPrewarm, ct).ConfigureAwait(false);
                 return true;
             }
 
@@ -124,6 +130,8 @@ public sealed class OllamaLifecycle : IDisposable
                 {
                     Log("existing ollama reachable after failed spawn – adopting, _weStartedIt=false");
                     _weStartedIt = false;
+                    if (modelToPrewarm is not null)
+                        await PrewarmModelAsync(modelToPrewarm, ct).ConfigureAwait(false);
                     return true;
                 }
 
@@ -143,6 +151,8 @@ public sealed class OllamaLifecycle : IDisposable
                 if (await IsReachableAsync(ct).ConfigureAwait(false))
                 {
                     Log($"child is serving after {StartupWaitTotalMs - (int)(deadline - DateTime.UtcNow).TotalMilliseconds}ms");
+                    if (modelToPrewarm is not null)
+                        await PrewarmModelAsync(modelToPrewarm, ct).ConfigureAwait(false);
                     return true;
                 }
                 try { await Task.Delay(StartupPollIntervalMs, ct).ConfigureAwait(false); }
@@ -155,6 +165,44 @@ public sealed class OllamaLifecycle : IDisposable
         finally
         {
             _gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Lädt das Modell in den VRAM, ohne eine echte Inferenz zu starten.
+    /// Nutzt die Ollama-eigene /api/generate-API mit leerem Prompt und keep_alive,
+    /// damit das Modell für die folgende Chat-Anfrage bereits warm ist.
+    /// Schlägt die Pre-Warm-Anfrage fehl, wird nur geloggt – Speaky läuft weiter.
+    /// </summary>
+    private async Task PrewarmModelAsync(string model, CancellationToken ct)
+    {
+        Log($"prewarm start model={model}");
+        var started = DateTime.UtcNow;
+        try
+        {
+            // Ollama-native API: leere Prompt-Anfrage lädt das Modell in VRAM.
+            // keep_alive="10m" hält es geladen, damit Folge-Requests sofort antworten.
+            var payload = $"{{\"model\":\"{model}\",\"keep_alive\":\"10m\"}}";
+            using var content = new System.Net.Http.StringContent(
+                payload, System.Text.Encoding.UTF8, "application/json");
+
+            using var prewarmHttp = new System.Net.Http.HttpClient
+            {
+                Timeout = TimeSpan.FromMilliseconds(PrewarmTimeoutMs)
+            };
+
+            using var resp = await prewarmHttp
+                .PostAsync(BaseUrl + "/api/generate", content, ct)
+                .ConfigureAwait(false);
+
+            var elapsed = (DateTime.UtcNow - started).TotalMilliseconds;
+            Log($"prewarm done ({elapsed:F0}ms) status={resp.StatusCode}");
+        }
+        catch (Exception ex)
+        {
+            var elapsed = (DateTime.UtcNow - started).TotalMilliseconds;
+            Log($"prewarm failed after {elapsed:F0}ms – {ex.GetType().Name}: {ex.Message}");
+            // Kein throw: Pre-Warm ist Best-Effort, die eigentliche Anfrage kommt sowieso.
         }
     }
 

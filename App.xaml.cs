@@ -134,10 +134,12 @@ public partial class App : Application
                     var raw = await _transcriber.TranscribeFileAsync(wavPath);
 
                     // Für den Diplomatie-Modus kann das Post-Processing mehrere
-                    // Sekunden dauern (LLM-Inferenz). Der Status wird hier sichtbar
-                    // umgesetzt, damit der User weiß, dass die App nicht hängt.
+                    // Sekunden dauern (Ollama-Start + Modell-Load in VRAM + Inferenz).
+                    // Der Status wird hier sichtbar umgesetzt, damit der User weiß,
+                    // dass die App nicht hängt. "Modell lädt" beim Kaltstart (bis ~90s),
+                    // "Diplomatie" bei warmem Modell (10–20s).
                     if (_state.Mode == RecordingMode.Diplomatie)
-                        _state.StatusText = $"Diplomatie ({_state.LlmModel}) …";
+                        _state.StatusText = $"Modell lädt… ({_state.LlmModel})";
 
                     var result = await _modeManager.ProcessAsync(
                         raw, _state.Mode, _state.EmojiCount, _state.LlmModel);

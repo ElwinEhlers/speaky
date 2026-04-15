@@ -65,7 +65,9 @@ public sealed class ModeManager
     private async Task<Result> DiplomatieAsync(string text, string llmModel, CancellationToken ct)
     {
         // 1) Ollama hochfahren (oder feststellen, dass er schon läuft).
-        var up = await _ollama.EnsureRunningAsync(ct).ConfigureAwait(false);
+        //    Das Modell wird direkt nach dem Start vorgewärmt, damit der erste
+        //    Chat-Request nicht in einen Timeout läuft (Kaltstart qwen3:8b ~30-90s).
+        var up = await _ollama.EnsureRunningAsync(llmModel, ct).ConfigureAwait(false);
         if (!up)
         {
             // Fallback: Rohtext nur aufgeräumt zurückgeben. So funktioniert Speaky

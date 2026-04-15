@@ -47,10 +47,10 @@ public sealed class LlmService
 
     public LlmService()
     {
-        // 90s statt 120s: Das Model-Warmup bei qwen3:8b auf RTX 3060 Ti braucht
-        // ~10-30s; eine typische Diplomatie-Inferenz liegt bei 5-20s. 90s lässt
-        // genug Luft, aber blockiert die GUI nicht endlos wenn Ollama hängt.
-        _http = new HttpClient { Timeout = TimeSpan.FromSeconds(90) };
+        // 300s: OllamaLifecycle.PrewarmModelAsync lädt das Modell in VRAM bevor wir
+        // hier ankommen, daher greift dieser Timeout im Normalfall nie. 300s ist
+        // nur das letzte Sicherheitsnetz falls der Pre-Warm fehlschlug.
+        _http = new HttpClient { Timeout = TimeSpan.FromSeconds(300) };
         _logPath = Path.Combine(AppContext.BaseDirectory, "whisper-debug.log");
     }
 
@@ -110,7 +110,7 @@ public sealed class LlmService
             // HttpClient.Timeout ist ausgelöst worden (nicht der User-Cancel-Token).
             var elapsed = (DateTime.Now - startedAt).TotalMilliseconds;
             Log($"--- LLM diplomatie TIMEOUT after {elapsed:F0}ms: {tce.Message} ---");
-            throw new InvalidOperationException("Ollama-Timeout (90s) – Modell hängt vermutlich fest", tce);
+            throw new InvalidOperationException("Ollama-Timeout (5 Min) – Modell hängt vermutlich fest", tce);
         }
         catch (HttpRequestException hre)
         {
