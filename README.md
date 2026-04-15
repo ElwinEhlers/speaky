@@ -3,7 +3,8 @@
 Kleine Windows-11-Hintergrund-App: Hotkey drücken → sprechen → loslassen → Text landet im gerade aktiven Eingabefeld. Deutsch. Lokal. Kein Cloud-Service nötig.
 
 <p align="center">
-  <img src="docs/gui-screenshot.png" alt="Speaky GUI im Idle-Zustand" width="320">
+  <img src="docs/gui-screenshot.png" alt="Speaky GUI im Idle-Zustand" width="320">&nbsp;
+  <img src="docs/gui-screenshot-diplomatie.png" alt="Speaky GUI im Diplomatie-Zustand" width="320">
 </p>
 
 ## Was das MVP kann
