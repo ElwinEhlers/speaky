@@ -9,8 +9,8 @@ namespace Speaky.Models;
 /// </summary>
 public enum RecordingMode
 {
-    /// <summary>Text so direkt wie gesprochen einfügen.</summary>
-    Blitz = 0,
+    /// <summary>Text so direkt wie gesprochen einfügen, ohne Nachbearbeitung.</summary>
+    Woertlich = 0,
 
     /// <summary>Pausen und Satzstruktur sauber ausformulieren (deterministisch).</summary>
     Ausschreib = 1,

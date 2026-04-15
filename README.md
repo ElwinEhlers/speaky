@@ -14,10 +14,10 @@ Kleine Windows-11-Hintergrund-App: Hotkey drücken → sprechen → loslassen �
 - **Lokale Transkription** via Whisper.net (deutsches Sprachmodell, offline)
 - **Automatisches Einfügen** in das fokussierte Eingabefeld via Clipboard + Ctrl+V (Win32 `SendInput`)
 - **4 Modi** mit unterschiedlichem Post-Processing:
-  1. **Blitz** – Text 1:1 wie gesprochen
+  1. **Wörtlich** – Text 1:1 wie gesprochen, keine Nachbearbeitung
   2. **Ausschreib** – Satzzeichen/Groß-Klein aufgeräumt
   3. **Diplomatie** – wütendes Diktat → höfliche Business-Sprache via lokalem LLM (Ollama, optional)
-  4. **Emoji** – Text + 1–5 zufällige Emojis (per Slider)
+  4. **Emoji** – Wörter werden inline durch passende Emojis ersetzt (`emoji-dictionary.de.json` neben der EXE, vom User editierbar), plus optional 0–5 zufällige Emojis am Ende
 
 ## Voraussetzungen
 
@@ -98,7 +98,7 @@ Falls das Mikrofon blockiert ist, zeigt Speaky eine entsprechende Meldung.
 
 ### 5. (Optional) Ollama für den Diplomatie-Modus
 
-Der **Diplomatie-Modus** formuliert wütendes Diktat in ruhige, sachliche Business-Sprache um. Dafür braucht Speaky ein lokales LLM via [Ollama](https://ollama.com). Wer Diplomatie nicht benutzt, kann diesen Schritt komplett überspringen – Blitz/Ausschreib/Emoji funktionieren auch ohne Ollama und starten ihn nie.
+Der **Diplomatie-Modus** formuliert wütendes Diktat in ruhige, sachliche Business-Sprache um. Dafür braucht Speaky ein lokales LLM via [Ollama](https://ollama.com). Wer Diplomatie nicht benutzt, kann diesen Schritt komplett überspringen – Wörtlich/Ausschreib/Emoji funktionieren auch ohne Ollama und starten ihn nie.
 
 1. Ollama für Windows installieren: https://ollama.com/download/windows
 2. Mindestens eines der drei unterstützten Modelle ziehen:
@@ -149,7 +149,7 @@ App.xaml.cs                 ← Composition Root, verdrahtet alle Services
 ├── LlmService              ← OpenAI-kompatible Chat-Completions → Ollama
 └── Models/
     ├── RecordingState      ← Shared State GUI ↔ Hotkey ↔ LLM-Modell
-    └── RecordingMode       ← Blitz / Ausschreib / Diplomatie / Emoji
+    └── RecordingMode       ← Wörtlich / Ausschreib / Diplomatie / Emoji
 ```
 
 GUI-Button und Hotkey ändern denselben `RecordingState`. Dadurch sind Button-Label, Tray-Icon und Hotkey-Verhalten immer synchron — egal womit gestartet wurde.

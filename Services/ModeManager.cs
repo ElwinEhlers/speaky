@@ -5,7 +5,7 @@ namespace Speaky.Services;
 /// <summary>
 /// Wendet pro Modus ein Post-Processing auf das rohe Whisper-Transkript an.
 ///
-/// - Blitz / Ausschreib / Emoji: rein deterministisch, kein externer Service.
+/// - Wörtlich / Ausschreib / Emoji: rein deterministisch, kein externer Service.
 /// - Diplomatie: ruft <see cref="LlmService"/> (Ollama) auf und fällt auf den
 ///   deterministischen Cleanup zurück, wenn Ollama nicht erreichbar ist.
 ///   Ollama wird dabei <b>on demand</b> via <see cref="OllamaLifecycle"/>
@@ -21,11 +21,13 @@ public sealed class ModeManager
 
     private readonly OllamaLifecycle _ollama;
     private readonly LlmService _llm;
+    private readonly EmojiDictionary _emojiDict;
 
-    public ModeManager(OllamaLifecycle ollama, LlmService llm)
+    public ModeManager(OllamaLifecycle ollama, LlmService llm, EmojiDictionary emojiDict)
     {
         _ollama = ollama;
         _llm = llm;
+        _emojiDict = emojiDict;
     }
 
     /// <summary>Ergebnis eines Mode-Processing-Laufs inklusive Statusmeldung für die GUI.</summary>
@@ -43,7 +45,7 @@ public sealed class ModeManager
 
         switch (mode)
         {
-            case RecordingMode.Blitz:
+            case RecordingMode.Woertlich:
                 return new Result(text, "Eingefügt – bereit");
 
             case RecordingMode.Ausschreib:
@@ -97,18 +99,29 @@ public sealed class ModeManager
     }
 
     /// <summary>
-    /// Emoji-Modus: Text bleibt wie gesprochen, am Ende werden N Emojis angehängt.
-    /// Die Auswahl ist zufällig aus dem Pool – genug Abwechslung für Social Media.
+    /// Emoji-Modus:
+    /// 1) Jedes Wort, das im <see cref="EmojiDictionary"/> steht, wird inline
+    ///    durch sein Emoji ersetzt ("Die Kuh steht in der Sonne" → "Die 🐄
+    ///    steht in der ☀️").
+    /// 2) Danach werden optional noch N zufällige Emojis aus dem Pool angehängt
+    ///    (Slider 0–5 in der GUI). Bei 0 gibt es keine Random-Anhänge, der Text
+    ///    kommt nur inline-ersetzt raus.
     /// </summary>
-    private static string WithEmojis(string text, int count)
+    private string WithEmojis(string text, int count)
     {
-        count = Math.Clamp(count, 1, 5);
+        // 1) Inline-Ersetzung
+        var replaced = _emojiDict.ReplaceWords(text);
+
+        // 2) Optional zufällige Emojis am Ende anhängen
+        count = Math.Clamp(count, 0, 5);
+        if (count == 0) return replaced;
+
         var rnd = Random.Shared;
         var emojis = new System.Text.StringBuilder(" ");
         for (int i = 0; i < count; i++)
         {
             emojis.Append(EmojiPool[rnd.Next(EmojiPool.Length)]);
         }
-        return text + emojis;
+        return replaced + emojis;
     }
 }

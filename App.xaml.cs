@@ -26,6 +26,7 @@ public partial class App : Application
     private ForegroundTracker? _foreground;
     private OllamaLifecycle? _ollama;
     private LlmService? _llm;
+    private EmojiDictionary? _emojiDict;
 
     // Serialisiert Aufnahme-Toggles, damit ein schneller Doppel-Druck keinen
     // Race zwischen "Start" und "Stop" erzeugt.
@@ -41,11 +42,16 @@ public partial class App : Application
         _foreground = new ForegroundTracker();
 
         // LLM-Stack nur instanziiert – NICHT gestartet. Ollama läuft erst dann hoch,
-        // wenn der User tatsächlich den Diplomatie-Modus benutzt. Blitz/Ausschreib/
+        // wenn der User tatsächlich den Diplomatie-Modus benutzt. Wörtlich/Ausschreib/
         // Emoji triggern nie einen Ollama-Start.
         _ollama = new OllamaLifecycle();
         _llm = new LlmService();
-        _modeManager = new ModeManager(_ollama, _llm);
+
+        // Emoji-Wörterbuch einmalig laden. Wenn die JSON fehlt, bleibt das
+        // Wörterbuch leer und der Emoji-Modus fällt auf reines Anhängen zurück.
+        _emojiDict = EmojiDictionary.LoadFromDefaultPath();
+
+        _modeManager = new ModeManager(_ollama, _llm, _emojiDict);
 
         // Modell-Pfad: whisper-models/ggml-small.bin neben der .exe.
         // (base war nur für Diagnose aktiv – small liefert spürbar bessere deutsche Transkripte)

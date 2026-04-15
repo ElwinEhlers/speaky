@@ -17,8 +17,8 @@ public sealed class RecordingState : INotifyPropertyChanged
     }
 
     private Phase _currentPhase = Phase.Idle;
-    private RecordingMode _mode = RecordingMode.Blitz;
-    private int _emojiCount = 2;
+    private RecordingMode _mode = RecordingMode.Woertlich;
+    private int _emojiCount = 0;
     private float _inputLevel;
     private string _statusText = "Bereit";
     private string _llmModel = LlmModels.Default;
@@ -35,11 +35,15 @@ public sealed class RecordingState : INotifyPropertyChanged
         set { if (_mode != value) { _mode = value; OnChanged(); } }
     }
 
-    /// <summary>Anzahl Emojis im Emoji-Modus (1–5).</summary>
+    /// <summary>
+    /// Anzahl zusätzlicher zufälliger Emojis, die nach der Inline-Ersetzung
+    /// am Ende angehängt werden (0–5). 0 = reine Inline-Ersetzung, keine
+    /// Zufalls-Anhänge.
+    /// </summary>
     public int EmojiCount
     {
         get => _emojiCount;
-        set { var clamped = Math.Clamp(value, 1, 5); if (_emojiCount != clamped) { _emojiCount = clamped; OnChanged(); } }
+        set { var clamped = Math.Clamp(value, 0, 5); if (_emojiCount != clamped) { _emojiCount = clamped; OnChanged(); } }
     }
 
     /// <summary>Aktueller Mikrofon-Pegel 0.0 – 1.0 für VU-Meter.</summary>
@@ -58,7 +62,7 @@ public sealed class RecordingState : INotifyPropertyChanged
     /// <summary>
     /// Ausgewähltes Ollama-Modell für den Diplomatie-Modus.
     /// Wird nur bei <see cref="RecordingMode.Diplomatie"/> ausgewertet –
-    /// Blitz/Ausschreib/Emoji ignorieren das und starten kein LLM.
+    /// Wörtlich/Ausschreib/Emoji ignorieren das und starten kein LLM.
     /// </summary>
     public string LlmModel
     {

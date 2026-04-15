@@ -58,7 +58,7 @@
         <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,14,0,0">
             <TextBlock Text="Modus:" VerticalAlignment="Center" Margin="0,0,8,0"/>
             <ComboBox x:Name="ModeCombo" Width="180" SelectionChanged="ModeCombo_SelectionChanged">
-                <ComboBoxItem Content="Blitzmodus"/>
+                <ComboBoxItem Content="Wörtlich-Modus"/>
                 <ComboBoxItem Content="Ausschreib-Modus"/>
                 <ComboBoxItem Content="Diplomatie-Modus"/>
                 <ComboBoxItem Content="Emoji-Modus"/>
@@ -68,11 +68,11 @@
         <!-- Emoji-Count (nur sichtbar im Emoji-Modus) -->
         <StackPanel Grid.Row="4" x:Name="EmojiPanel" Orientation="Horizontal"
                     Margin="0,10,0,0" Visibility="Collapsed">
-            <TextBlock Text="Emojis:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-            <Slider x:Name="EmojiSlider" Width="140" Minimum="1" Maximum="5"
-                    IsSnapToTickEnabled="True" TickFrequency="1" Value="2"
+            <TextBlock Text="+Zufalls-Emojis:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+            <Slider x:Name="EmojiSlider" Width="120" Minimum="0" Maximum="5"
+                    IsSnapToTickEnabled="True" TickFrequency="1" Value="0"
                     ValueChanged="EmojiSlider_ValueChanged"/>
-            <TextBlock x:Name="EmojiCountLabel" Text="2" Margin="8,0,0,0" VerticalAlignment="Center"/>
+            <TextBlock x:Name="EmojiCountLabel" Text="0" Margin="8,0,0,0" VerticalAlignment="Center"/>
         </StackPanel>
 
         <!-- LLM-Modell (nur sichtbar im Diplomatie-Modus) -->

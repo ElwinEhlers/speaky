@@ -47,7 +47,10 @@ public sealed class LlmService
 
     public LlmService()
     {
-        _http = new HttpClient { Timeout = TimeSpan.FromSeconds(120) };
+        // 90s statt 120s: Das Model-Warmup bei qwen3:8b auf RTX 3060 Ti braucht
+        // ~10-30s; eine typische Diplomatie-Inferenz liegt bei 5-20s. 90s lässt
+        // genug Luft, aber blockiert die GUI nicht endlos wenn Ollama hängt.
+        _http = new HttpClient { Timeout = TimeSpan.FromSeconds(90) };
         _logPath = Path.Combine(AppContext.BaseDirectory, "whisper-debug.log");
     }
 
@@ -59,6 +62,7 @@ public sealed class LlmService
     {
         if (string.IsNullOrWhiteSpace(rawText)) return rawText;
 
+        var startedAt = DateTime.Now;
         Log($"--- LLM diplomatie start model={model} len={rawText.Length} ---");
 
         var payload = new ChatRequest
@@ -73,27 +77,53 @@ public sealed class LlmService
             },
         };
 
-        using var resp = await _http.PostAsJsonAsync(ChatUrl, payload, ct).ConfigureAwait(false);
-        if (!resp.IsSuccessStatusCode)
+        try
         {
-            var body = await SafeReadAsync(resp).ConfigureAwait(false);
-            Log($"  LLM http {(int)resp.StatusCode}: {body}");
-            throw new InvalidOperationException($"Ollama antwortete mit HTTP {(int)resp.StatusCode}");
+            using var resp = await _http.PostAsJsonAsync(ChatUrl, payload, ct).ConfigureAwait(false);
+            if (!resp.IsSuccessStatusCode)
+            {
+                var body = await SafeReadAsync(resp).ConfigureAwait(false);
+                Log($"  LLM http {(int)resp.StatusCode}: {body}");
+                throw new InvalidOperationException($"Ollama antwortete mit HTTP {(int)resp.StatusCode}");
+            }
+
+            var parsed = await resp.Content.ReadFromJsonAsync<ChatResponse>(cancellationToken: ct).ConfigureAwait(false);
+            var content = parsed?.Choices?.FirstOrDefault()?.Message?.Content ?? string.Empty;
+
+            // Ältere Ollama-Versionen (und manche Modelle) schreiben
+            // "<think>…</think>" direkt in den Content. Neuere Versionen
+            // (0.20+) liefern das Reasoning in einem separaten Feld und
+            // der Content ist bereits clean – der Regex ist dann einfach ein No-Op.
+            content = ThinkBlockRegex.Replace(content, string.Empty);
+            content = content.Trim().Trim('"');
+
+            var elapsed = (DateTime.Now - startedAt).TotalMilliseconds;
+            Log($"--- LLM diplomatie done ({elapsed:F0}ms): \"{content}\" ---");
+
+            if (string.IsNullOrWhiteSpace(content))
+                throw new InvalidOperationException("Ollama lieferte leeren Content zurück");
+
+            return content;
         }
-
-        var parsed = await resp.Content.ReadFromJsonAsync<ChatResponse>(cancellationToken: ct).ConfigureAwait(false);
-        var content = parsed?.Choices?.FirstOrDefault()?.Message?.Content ?? string.Empty;
-
-        // Qwen3 schreibt gerne "<think>…</think>" vor die eigentliche Antwort.
-        content = ThinkBlockRegex.Replace(content, string.Empty);
-        content = content.Trim().Trim('"');
-
-        Log($"--- LLM diplomatie done: \"{content}\" ---");
-
-        if (string.IsNullOrWhiteSpace(content))
-            throw new InvalidOperationException("Ollama lieferte leeren Content zurück");
-
-        return content;
+        catch (TaskCanceledException tce) when (!ct.IsCancellationRequested)
+        {
+            // HttpClient.Timeout ist ausgelöst worden (nicht der User-Cancel-Token).
+            var elapsed = (DateTime.Now - startedAt).TotalMilliseconds;
+            Log($"--- LLM diplomatie TIMEOUT after {elapsed:F0}ms: {tce.Message} ---");
+            throw new InvalidOperationException("Ollama-Timeout (90s) – Modell hängt vermutlich fest", tce);
+        }
+        catch (HttpRequestException hre)
+        {
+            var elapsed = (DateTime.Now - startedAt).TotalMilliseconds;
+            Log($"--- LLM diplomatie HTTP FAIL after {elapsed:F0}ms: {hre.Message} ---");
+            throw;
+        }
+        catch (Exception ex) when (ex is not InvalidOperationException)
+        {
+            var elapsed = (DateTime.Now - startedAt).TotalMilliseconds;
+            Log($"--- LLM diplomatie EXCEPTION after {elapsed:F0}ms: {ex.GetType().Name}: {ex.Message} ---");
+            throw;
+        }
     }
 
     private static async Task<string> SafeReadAsync(HttpResponseMessage resp)
