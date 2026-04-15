@@ -94,10 +94,14 @@ public sealed class OllamaLifecycle : IDisposable
                 {
                     FileName = exe,
                     Arguments = "serve",
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
+                    // UseShellExecute = true damit Ollama das korrekte GPU-Environment
+                    // (CUDA-Pfade, OLLAMA_HOME etc.) aus dem Shell-Kontext erbt.
+                    // WICHTIG: RedirectStandard* darf bei UseShellExecute=true NICHT
+                    // gesetzt werden – und umgekehrt darf bei UseShellExecute=false der
+                    // stdout/stderr-Buffer NICHT ungelesen bleiben, sonst blockiert
+                    // Ollama beim Schreiben seiner Startup-Logs (Buffer-Deadlock).
+                    UseShellExecute = true,
+                    WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden,
                 };
                 proc = Process.Start(psi);
             }
